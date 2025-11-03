@@ -79,37 +79,22 @@ def process_single_image(image_file, dir_origin='pokemon_dataset', dir_name='pok
         
 def process_pokemon(dir_origin='pokemon_dataset', dir_name='pokemon_processed'):
     '''
-    Procesa las imágenes aplicando múltiples transformaciones.
+    Procesa las imágenes en paralelo aplicando múltiples transformaciones.
     '''
-
     os.makedirs(dir_name, exist_ok=True)
     images = sorted([f for f in os.listdir(dir_origin) if f.endswith('.png')])
     total = len(images)
     
-    print(f'\nProcesando {total} imágenes...\n')
+    print(f'\nProcesando {total} imágenes (paralelo)...\n')
     start_time = time.time()
     
-    for image in tqdm(images, desc='Procesando', unit='img'):
-        try:
-            path_origin = os.path.join(dir_origin, image)
-            img = Image.open(path_origin).convert('RGB')
-            
-            img = img.filter(ImageFilter.GaussianBlur(radius=10))
-            enhancer = ImageEnhance.Contrast(img)
-            img = enhancer.enhance(1.5)
-            img = img.filter(ImageFilter.EDGE_ENHANCE_MORE)
-            img_inv = ImageOps.invert(img)
-            img_inv = img_inv.filter(ImageFilter.GaussianBlur(radius=5))
-            width, height = img_inv.size
-            img_inv = img_inv.resize((width * 2, height * 2), Image.LANCZOS)
-            img_inv = img_inv.resize((width, height), Image.LANCZOS)
-        
-            saving_path = os.path.join(dir_name, image)
-            img_inv.save(saving_path, quality=95)
-            
-        except Exception as e:
-            tqdm.write(f'  Error procesando {image}: {e}')
-    
+    with ProcessPoolExecutor(max_workers=8) as executor:
+        results = list(tqdm(executor.map(process_single_image, images), total=total, desc='Procesando', unit='img'))
+
+    for error in results:
+        if error:
+            tqdm.write(error)
+
     total_time = time.time() - start_time
     print(f'  Procesamiento completado en {total_time:.2f} segundos')
     print(f'  Promedio: {total_time/total:.2f} s/img\n')
